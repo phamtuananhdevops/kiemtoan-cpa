@@ -287,6 +287,17 @@ module.exports = async function handler(req, res) {
 
   const q = body.text || body.message || body.question || body.prompt;
     if (!messages.length && q) messages = [{ role: "user", content: String(q) }];
+  // Chấm bài (mode="grade"): frontend gửi question + answer + rubric rời rạc;
+    // ghép thành một yêu cầu chấm duy nhất để AI chấm bài thay vì trả lời đề.
+    if (body.mode === "grade" && body.answer) {
+          messages = [{
+                  role: "user",
+                  content: "ĐỀ BÀI:\n" + String(body.question || "") +
+                            "\n\nBÀI LÀM CỦA HỌC VIÊN:\n" + String(body.answer) +
+                            "\n\nBAREM / TIÊU CHÍ CHẤM:\n" + String(body.rubric || "Chấm theo barem chuẩn của đề.") +
+                            "\n\nHãy chấm bài làm trên theo barem: nêu từng ý đúng/sai, chỉ ra lỗi sai cụ thể, rồi cho điểm tham khảo. Không giải lại đề."
+          }];
+    }
 
   if (!messages.length) {
     res.status(400).json({ ok: false, error: "Thiếu nội dung: gửi 'text' hoặc 'messages'." });
@@ -297,8 +308,11 @@ module.exports = async function handler(req, res) {
     return { role: m.role === "assistant" ? "assistant" : "user", content: String(m.content) };
   });
 
-  const system = (body.system ? String(body.system) : DEFAULT_SYSTEM) +
-    (body.context ? "\n\nNGỮ CẢNH — NỘI DUNG TRANG HỌC:\n" + String(body.context) : "");
+  const GRADE_SYSTEM = "Bạn là giám khảo chấm bài tự luận môn Kiểm toán CPA 2026. Chấm bài làm của học viên theo đúng barem được cho: nêu từng ý đúng/sai, chỉ ra lỗi sai cụ thể, cho điểm tham khảo. Không giải lại đề. Trả lời bằng tiếng Việt.";
+    const system = body.mode === "grade"
+      ? GRADE_SYSTEM
+          : (body.system ? String(body.system) : DEFAULT_SYSTEM) +
+            (body.context ? "\n\nNGỮ CẢNH — NỘI DUNG TRANG HỌC:\n" + String(body.context) : "");
 
   const model = process.env.AI_MODEL || null;
 
